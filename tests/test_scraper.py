@@ -247,16 +247,16 @@ def test_formula_like_category_and_description_stay_text(tmp_path):
     pages = {start: index,
              "https://books.toscrape.com/catalogue/category/books/evil_1/index.html": "<html>" + pod("T", "t_1") + "</html>",
              "https://books.toscrape.com/catalogue/t_1/index.html":
-                 detail_page([("UPC", "u1"), ("Availability", "In stock (1 available)")], "@SUM(A1)")}
+                 detail_page([("UPC", "u1"), ("Availability", "In stock (1 available)")], "=SUM(A1)")}
     books, report = crawl(lambda url: pages[url], start, details=True)
     assert not report.failed_pages
     paths = write_all(books, report, tmp_path)
     wb = load_workbook(paths[0])
     header = [c.value for c in wb["Books"][1]]
-    for name, value in (("Category", "=SUM(1+1)"), ("Description", "@SUM(A1)")):
+    for name, value in (("Category", "=SUM(1+1)"), ("Description", "=SUM(A1)")):
         cell = wb["Books"].cell(row=2, column=header.index(name) + 1)
         assert cell.value == value and cell.data_type == "s"
     category = wb["Summary"]["A2"]
     assert category.value == "=SUM(1+1)" and category.data_type == "s"
     rows = list(csv.reader(paths[1].open(encoding="utf-8-sig")))
-    assert "'=SUM(1+1)" in rows[1] and "'@SUM(A1)" in rows[1]
+    assert "'=SUM(1+1)" in rows[1] and "'=SUM(A1)" in rows[1]
