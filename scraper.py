@@ -110,14 +110,27 @@ def parse_listing(html: str, page_url: str, category: str) -> tuple[list[Book], 
 
 
 def parse_detail(html: str) -> dict:
+    """Read UPC, stock and description from a product page; raise ValueError if the page is not one."""
     soup = BeautifulSoup(html, "html.parser")
     table = {row.th.get_text(strip=True): row.td.get_text(strip=True)
-             for row in soup.select("table.table-striped tr")}
-    stock = re.search(r"\((\d+) available\)", table.get("Availability", ""))
+             for row in soup.select("table.table-striped tr") if row.th and row.td}
+    if not table.get("UPC"):
+        raise ValueError("no product table with a UPC")
+    if "Availability" not in table:
+        raise ValueError("no availability row")
+    availability = table["Availability"]
+    stock = re.search(r"\((\d+) available\)", availability)
+    if stock:
+        stock_count = int(stock.group(1))
+    elif "out of stock" in availability.lower():
+        stock_count = 0
+    else:
+        raise ValueError(f"unrecognised availability text: {availability[:40]!r}")
+    # Some real products have no description, so a missing one is not an error.
     description = soup.select_one("#product_description + p")
     return {
-        "upc": table.get("UPC", ""),
-        "stock_count": int(stock.group(1)) if stock else 0,
+        "upc": table["UPC"],
+        "stock_count": stock_count,
         "description": description.get_text(strip=True) if description else "",
     }
 
@@ -178,14 +191,15 @@ def crawl(fetch: Fetch, start_url: str = BASE_URL, *, categories: Iterable[str] 
     if details:
         for index, book in enumerate(books, 1):
             try:
-                detail = parse_detail(fetch(book.url))
+                page = fetch(book.url)
                 report.pages_fetched += 1
-                if not detail["upc"]:
-                    raise ValueError("no product table")
+                detail = parse_detail(page)
                 for key, value in detail.items():
                     setattr(book, key, value)
-            except (requests.RequestException, ValueError, AttributeError, TypeError) as exc:
+            except requests.RequestException as exc:
                 report.failed_pages.append(f"{book.url} ({exc.__class__.__name__})")
+            except (ValueError, AttributeError, TypeError) as exc:
+                report.failed_pages.append(f"{book.url} (unexpected product page: {exc})")
             if index % 100 == 0:
                 log(f"  details: {index}/{len(books)}")
 

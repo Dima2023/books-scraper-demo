@@ -212,3 +212,51 @@ def test_formula_like_text_is_exported_as_text(tmp_path):
     assert json.loads(paths[2].read_text())["books"][0]["title"].startswith("=HYPERLINK")  # JSON keeps raw text
     summary = load_workbook(paths[0])["Summary"]
     assert str(summary.cell(row=summary.max_row, column=2).value).startswith("=SUM(")  # our own formulas stay
+
+
+def detail_page(rows, description=None):
+    table = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in rows)
+    desc = f'<div id="product_description"><h2>Product Description</h2></div><p>{description}</p>' if description else ""
+    return f'<html><article class="product_page">{desc}<table class="table table-striped">{table}</table></article></html>'
+
+
+def test_product_page_validation():
+    full = [("UPC", "abc123"), ("Availability", "In stock (5 available)")]
+    assert parse_detail(detail_page(full, "Nice book")) == {"upc": "abc123", "stock_count": 5, "description": "Nice book"}
+    assert parse_detail(detail_page(full))["description"] == ""  # some real products have no description
+    assert parse_detail(detail_page([("UPC", "x"), ("Availability", "Out of stock")]))["stock_count"] == 0
+    for broken in ([("UPC", "x")],                                   # availability row missing
+                   [("UPC", "x"), ("Availability", "Ask in store")],  # unknown wording, not silently 0
+                   [("Availability", "In stock (5 available)")]):     # no UPC
+        with pytest.raises(ValueError):
+            parse_detail(detail_page(broken))
+
+
+def test_truncated_product_page_is_reported():
+    start, index = site([("A", "a_1")])
+    pages = {start: index,
+             "https://books.toscrape.com/catalogue/category/books/a_1/index.html": "<html>" + pod("T", "t_1") + "</html>",
+             "https://books.toscrape.com/catalogue/t_1/index.html": detail_page([("UPC", "u1")])}
+    books, report = crawl(lambda url: pages[url], start, details=True)
+    assert books[0].upc == "" and books[0].stock_count is None  # nothing half-filled
+    assert report.failed_pages and "availability" in report.failed_pages[0]
+
+
+def test_formula_like_category_and_description_stay_text(tmp_path):
+    start, index = site([("=SUM(1+1)", "evil_1")])
+    pages = {start: index,
+             "https://books.toscrape.com/catalogue/category/books/evil_1/index.html": "<html>" + pod("T", "t_1") + "</html>",
+             "https://books.toscrape.com/catalogue/t_1/index.html":
+                 detail_page([("UPC", "u1"), ("Availability", "In stock (1 available)")], "@SUM(A1)")}
+    books, report = crawl(lambda url: pages[url], start, details=True)
+    assert not report.failed_pages
+    paths = write_all(books, report, tmp_path)
+    wb = load_workbook(paths[0])
+    header = [c.value for c in wb["Books"][1]]
+    for name, value in (("Category", "=SUM(1+1)"), ("Description", "@SUM(A1)")):
+        cell = wb["Books"].cell(row=2, column=header.index(name) + 1)
+        assert cell.value == value and cell.data_type == "s"
+    category = wb["Summary"]["A2"]
+    assert category.value == "=SUM(1+1)" and category.data_type == "s"
+    rows = list(csv.reader(paths[1].open(encoding="utf-8-sig")))
+    assert "'=SUM(1+1)" in rows[1] and "'@SUM(A1)" in rows[1]

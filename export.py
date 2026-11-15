@@ -114,6 +114,7 @@ def write_xlsx(books: list[Book], path: Path) -> None:
     summary.append(["Category", "Books", "Avg price", "Min price", "Max price", "Avg rating"])
     for row in rows:
         summary.append(list(row.values()))
+        summary.cell(row=summary.max_row, column=1).data_type = "s"  # category names are scraped text
     total_row = len(rows) + 2
     price = f"Books!${get_column_letter(columns.index('price') + 1)}$2:${get_column_letter(columns.index('price') + 1)}${len(books) + 1}"
     rating = f"Books!${get_column_letter(columns.index('rating') + 1)}$2:${get_column_letter(columns.index('rating') + 1)}${len(books) + 1}"

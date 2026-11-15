@@ -38,10 +38,10 @@ python scraper.py --details                        # also open every product pag
 
 - **Polite and resilient:** delay between requests, automatic retries with back-off on 429/5xx, timeouts, an honest User-Agent.
 - **Correct text:** the site sends no charset, so a naive scraper turns `£` into `Â£`; this one decodes UTF-8 explicitly. The CSV opens correctly in Excel.
-- **No duplicates, no silent gaps:** products are de-duplicated by URL. A page that fails to load, comes back without products (an error or maintenance page) or has an unexpected layout is listed in the run report instead of crashing the run or being skipped quietly.
+- **No duplicates, no silent gaps:** products are de-duplicated by URL. Pages that fail to load, listing pages that come back without products (an error or maintenance page) or with an unexpected layout, and product pages missing their UPC or stock line are listed in the run report instead of crashing the run or being skipped quietly.
 - **No half-written files:** each output is written to a temporary file and swapped in only when complete.
 - **Safe to open in Excel:** scraped text that starts like a formula (`=`, `+`, `-`, `@`) is stored as plain text, so a hostile product title cannot run as a formula when someone opens the file.
-- **Tested:** 17 automated tests on saved and synthetic pages (pagination, prices, ratings, product pages, duplicates, error pages, formula-like text, exports) plus a live smoke test: `pip install -r requirements-dev.txt && LIVE=1 pytest`.
+- **Tested:** 20 automated tests on saved and synthetic pages (pagination, prices, ratings, product pages, duplicates, error and truncated pages, formula-like text, exports) plus a live smoke test: `pip install -r requirements-dev.txt && LIVE=1 pytest`.
 
 ## Adapting it to another site
 
