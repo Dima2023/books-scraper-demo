@@ -137,3 +137,78 @@ def test_live_smoke():
     books, report = crawl(scraper.make_fetcher(delay=0.1), categories=["Poetry"], limit=5)
     assert len(books) == 5 and not report.failed_pages
     assert all(b.price > 0 and b.currency == "GBP" for b in books)
+
+
+# ---------------------------------------------------------------- synthetic pages (added after independent review)
+
+def pod(title, href, price="£10.00", rating="Three"):
+    return (f'<article class="product_pod"><img src="../../media/{href}.jpg">'
+            f'<p class="star-rating {rating}"></p><h3><a href="../../../{href}/index.html" title="{title}">{title}</a></h3>'
+            f'<p class="price_color">{price}</p><p class="instock availability">In stock</p></article>')
+
+
+def site(pages):
+    root = "https://books.toscrape.com/"
+    index = ('<div class="side_categories"><ul><li><ul>'
+             + "".join(f'<li><a href="catalogue/category/books/{slug}/index.html">{name}</a></li>' for name, slug in pages)
+             + "</ul></li></ul></div>")
+    return root + "index.html", index
+
+
+def test_same_product_in_two_categories_is_kept_once():
+    start, index = site([("A", "a_1"), ("B", "b_2")])
+    listing = "<html>" + pod("Shared book", "shared_9") + "</html>"
+    other = "<html>" + pod("Only in B", "only_8") + pod("Shared book", "shared_9") + "</html>"
+    pages = {start: index,
+             "https://books.toscrape.com/catalogue/category/books/a_1/index.html": listing,
+             "https://books.toscrape.com/catalogue/category/books/b_2/index.html": other}
+    books, report = crawl(lambda url: pages[url], start)
+    assert [b.title for b in books] == ["Shared book", "Only in B"]
+    assert report.duplicates_skipped == 1
+
+
+def test_details_path_fills_fields_and_reports_broken_detail_page():
+    start, index = site([("A", "a_1")])
+    listing = "<html>" + pod("Good", "good_1") + pod("Broken", "broken_2") + "</html>"
+    detail = (FIXTURES / "book_detail.html").read_text(encoding="utf-8")
+    pages = {start: index,
+             "https://books.toscrape.com/catalogue/category/books/a_1/index.html": listing,
+             "https://books.toscrape.com/catalogue/good_1/index.html": detail,
+             "https://books.toscrape.com/catalogue/broken_2/index.html": "<html>Service unavailable</html>"}
+    books, report = crawl(lambda url: pages[url], start, details=True)
+    good, broken = books
+    assert good.upc == "a897fe39b1053632" and good.stock_count == 22
+    assert broken.upc == "" and any("broken_2" in f for f in report.failed_pages)
+
+
+def test_error_page_and_malformed_price_are_reported_not_silent():
+    start, index = site([("Empty", "e_1"), ("Bad", "b_2"), ("Fine", "f_3")])
+    pages = {start: index,
+             "https://books.toscrape.com/catalogue/category/books/e_1/index.html": "<html><h1>Temporarily down</h1></html>",
+             "https://books.toscrape.com/catalogue/category/books/b_2/index.html": "<html>" + pod("X", "x_1", price="free") + "</html>",
+             "https://books.toscrape.com/catalogue/category/books/f_3/index.html": "<html>" + pod("Y", "y_2") + "</html>"}
+    books, report = crawl(lambda url: pages[url], start)
+    assert [b.title for b in books] == ["Y"]
+    assert len(report.failed_pages) == 2
+    assert any("no products" in f for f in report.failed_pages)
+    assert any("unexpected page structure" in f for f in report.failed_pages)
+
+
+def test_start_page_without_categories_is_an_error():
+    with pytest.raises(ValueError):
+        crawl(lambda url: "<html>maintenance</html>", BASE_URL)
+
+
+def test_formula_like_text_is_exported_as_text(tmp_path):
+    start, index = site([("A", "a_1")])
+    listing = "<html>" + pod("=HYPERLINK(&quot;http://evil&quot;)", "f_1") + pod("-minus title", "m_2") + "</html>"
+    pages = {start: index, "https://books.toscrape.com/catalogue/category/books/a_1/index.html": listing}
+    books, report = crawl(lambda url: pages[url], start)
+    paths = write_all(books, report, tmp_path)
+    cell = load_workbook(paths[0])["Books"]["A2"]
+    assert cell.value.startswith("=HYPERLINK") and cell.data_type == "s"
+    rows = list(csv.reader(paths[1].open(encoding="utf-8-sig")))
+    assert rows[1][0].startswith("'=HYPERLINK") and rows[2][0] == "'-minus title"
+    assert json.loads(paths[2].read_text())["books"][0]["title"].startswith("=HYPERLINK")  # JSON keeps raw text
+    summary = load_workbook(paths[0])["Summary"]
+    assert str(summary.cell(row=summary.max_row, column=2).value).startswith("=SUM(")  # our own formulas stay

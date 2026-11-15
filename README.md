@@ -19,6 +19,8 @@ Target: [books.toscrape.com](https://books.toscrape.com), a public site built fo
 
 Download the actual output: [books.xlsx](examples/books.xlsx) · [books.csv](examples/books.csv) · [books.json](examples/books.json)
 
+The exact command was `python scraper.py --details --delay 0.1 --out examples`; the run report (pages, failures, duplicates, seconds) is saved at the top of `books.json`.
+
 **In the Excel file**
 - **Books** sheet: title, category, price, rating, stock, clickable product link, UPC, description; filters and frozen header.
 - **Summary** sheet: number of books, average / min / max price and average rating per category, totals, and a chart of the top 10 categories.
@@ -36,9 +38,10 @@ python scraper.py --details                        # also open every product pag
 
 - **Polite and resilient:** delay between requests, automatic retries with back-off on 429/5xx, timeouts, an honest User-Agent.
 - **Correct text:** the site sends no charset, so a naive scraper turns `£` into `Â£`; this one decodes UTF-8 explicitly. The CSV opens correctly in Excel.
-- **No duplicates, no silent gaps:** products are de-duplicated by URL; a page that fails is logged and listed in the run report instead of crashing the run.
+- **No duplicates, no silent gaps:** products are de-duplicated by URL. A page that fails to load, comes back without products (an error or maintenance page) or has an unexpected layout is listed in the run report instead of crashing the run or being skipped quietly.
 - **No half-written files:** each output is written to a temporary file and swapped in only when complete.
-- **Tested:** 13 automated tests on saved pages (pagination, prices, ratings, details, exports, failure handling) plus a live smoke test: `pip install -r requirements-dev.txt && LIVE=1 pytest`.
+- **Safe to open in Excel:** scraped text that starts like a formula (`=`, `+`, `-`, `@`) is stored as plain text, so a hostile product title cannot run as a formula when someone opens the file.
+- **Tested:** 17 automated tests on saved and synthetic pages (pagination, prices, ratings, product pages, duplicates, error pages, formula-like text, exports) plus a live smoke test: `pip install -r requirements-dev.txt && LIVE=1 pytest`.
 
 ## Adapting it to another site
 

@@ -133,6 +133,8 @@ def crawl(fetch: Fetch, start_url: str = BASE_URL, *, categories: Iterable[str] 
     wanted = {name.lower() for name in categories} if categories else None
     found = parse_categories(fetch(start_url), start_url)
     report.pages_fetched += 1
+    if not found:
+        raise ValueError("no categories found on the start page (site layout changed?)")
     selected = [(name, url) for name, url in found if wanted is None or name.lower() in wanted]
     if wanted and not selected:
         raise ValueError("none of the requested categories exist on the site")
@@ -150,7 +152,17 @@ def crawl(fetch: Fetch, start_url: str = BASE_URL, *, categories: Iterable[str] 
                 log(f"  ! failed {page_url}: {exc}")
                 break
             report.pages_fetched += 1
-            page_books, page_url = parse_listing(html, page_url or url, name)
+            current = page_url
+            try:
+                page_books, page_url = parse_listing(html, current, name)
+            except (ValueError, KeyError, AttributeError, TypeError) as exc:
+                report.failed_pages.append(f"{current} (unexpected page structure: {exc.__class__.__name__})")
+                log(f"  ! could not parse {current}")
+                break
+            if not page_books:
+                report.failed_pages.append(f"{current} (no products found)")
+                log(f"  ! no products on {current}")
+                break
             for book in page_books:
                 if book.url in seen:
                     report.duplicates_skipped += 1
@@ -166,10 +178,13 @@ def crawl(fetch: Fetch, start_url: str = BASE_URL, *, categories: Iterable[str] 
     if details:
         for index, book in enumerate(books, 1):
             try:
-                for key, value in parse_detail(fetch(book.url)).items():
-                    setattr(book, key, value)
+                detail = parse_detail(fetch(book.url))
                 report.pages_fetched += 1
-            except requests.RequestException as exc:
+                if not detail["upc"]:
+                    raise ValueError("no product table")
+                for key, value in detail.items():
+                    setattr(book, key, value)
+            except (requests.RequestException, ValueError, AttributeError, TypeError) as exc:
                 report.failed_pages.append(f"{book.url} ({exc.__class__.__name__})")
             if index % 100 == 0:
                 log(f"  details: {index}/{len(books)}")

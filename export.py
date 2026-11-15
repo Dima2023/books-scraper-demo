@@ -17,6 +17,17 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from scraper import Book, RunReport
 
+TEXT_COLUMNS = ("title", "category", "url", "image_url", "upc", "description")
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value):
+    """Neutralise spreadsheet formulas in scraped text (OWASP CSV-injection guidance): prefix with '."""
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 HEADERS = {
     "title": "Title", "category": "Category", "price": "Price", "currency": "Currency",
     "rating": "Rating (1-5)", "in_stock": "In stock", "url": "Product URL", "image_url": "Image URL",
@@ -76,6 +87,9 @@ def write_xlsx(books: list[Book], path: Path) -> None:
         data = asdict(book)
         data["in_stock"] = "Yes" if book.in_stock else "No"
         ws.append([data[c] for c in columns])
+        for index, column in enumerate(columns, 1):
+            if column in TEXT_COLUMNS:  # scraped text is always stored as text, never as a formula
+                ws.cell(row=ws.max_row, column=index).data_type = "s"
 
     widths = {"title": 48, "category": 18, "price": 10, "currency": 10, "rating": 12, "in_stock": 10,
               "url": 40, "image_url": 40, "upc": 18, "stock_count": 15, "description": 60}
@@ -143,7 +157,7 @@ def write_csv(books: list[Book], path: Path) -> None:
             writer.writerow([HEADERS[c] for c in columns])
             for book in books:
                 data = asdict(book)
-                writer.writerow([data[c] for c in columns])
+                writer.writerow([csv_safe(data[c]) if c in TEXT_COLUMNS else data[c] for c in columns])
 
     _replace(path, write)
 
