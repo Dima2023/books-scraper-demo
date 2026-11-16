@@ -27,10 +27,14 @@ The icon row becomes a line of underscores and the class (`Four`) is gone; the w
 
 ## 2. Descriptions
 
+The prompt asked for the "full product description"; it did not ask for the text verbatim. What follows is therefore a difference between ScrapeGraphAI's end-to-end output and the text on the site, not a broken instruction. It matters when a client needs the data exactly as published.
+
 Literal comparison: 2 of 19 descriptions match the reference exactly; the result is the same after collapsing whitespace. For the other 17, a character-level diff of `reference_books.json` against `raw_llm_output.json` shows:
 
-- **16 pages:** the model left out a passage of about 375 characters. On the site that passage really is printed twice: the description paragraph of [A Light in the Attic](https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html) contains "It's hard to imagine a world without A Light in the Attic" two times.
-- **17 pages:** the model left out the trailing "...more" that is part of the paragraph on the site.
+- **16 pages:** the output leaves out a passage of about 375 characters. On the site that passage really is printed twice: the description paragraph of [A Light in the Attic](https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html) contains "It's hard to imagine a world without A Light in the Attic" two times.
+- **17 pages:** the output leaves out the trailing "...more" that is part of the paragraph on the site.
 - **9 pages:** small edits: missing spaces inserted after full stops ("weather.Detroit" → "weather. Detroit"), apostrophes "corrected" ("Yeat's" → "Yeats's", "Jess'" → "Jess's"), one straight apostrophe replaced with a curly one.
+
+Where the change happens: running ScrapeGraphAI's `convert_to_md` on the same pages, the Markdown it sends to the model still contains the passage twice (A Light in the Attic), the "...more" text and "weather.Detroit" without a space (Olio). So these changes are made after the conversion, at the model step, not by the HTML-to-Markdown preprocessing.
 
 The cleaned text may read better, but it is no longer what the site says, and the output gives no sign that anything was changed.

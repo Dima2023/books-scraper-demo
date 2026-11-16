@@ -61,7 +61,7 @@ LLM scrapers that take a plain-English prompt are popular, so I ran one against 
 | Installed packages (fresh venv) | 10 | 97, needs Python ≥ 3.12 |
 
 - **Ratings:** the site shows stars only as a CSS class (`star-rating Four`). ScrapeGraphAI converts the page to Markdown before the model sees it, and the class does not survive, so the rating never reaches the model.
-- **Descriptions:** the model returned cleaned-up text: it dropped a passage the site prints twice and the trailing "...more", added missing spaces and changed apostrophes. Readable, but no longer what the site says, and nothing in the output marks the change.
+- **Descriptions:** the prompt asked for the full description, not for it verbatim, and the output came back cleaned up: a passage the site prints twice and the trailing "...more" were dropped, missing spaces added, apostrophes changed. The Markdown sent to the model still had the original text, so the changes came from the model step. Readable, but no longer what the site says, and nothing in the output marks the change.
 
 For this catalogue, selectors were faster, had no model fees and kept the text as published. That is a trade-off, not a rule: selectors need maintenance when a site changes, and an LLM extractor can save time on a one-off job across many differently built sites, as long as its output is spot-checked against the pages.
 

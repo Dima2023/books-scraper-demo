@@ -8,7 +8,7 @@ A single run on 16 Nov 2026, kept so every number in the main README can be chec
 - **Reference:** `reference_books.json`, the output of `python scraper.py --category Poetry --details --delay 0.1` (commit `4f982a9`). Scores are **agreement with this reference**, not independently verified ground truth; spot checks against the live pages are in [EVIDENCE.md](EVIDENCE.md).
 - **LLM tool:** ScrapeGraphAI 2.1.4, `SmartScraperGraph`, `gpt-4.1-mini`, temperature 0, one call per page. Prompt: see `PROMPT` in `compare_sg.py`.
 - **Raw answers:** `raw_llm_output.json`, exactly as saved by the run (it used the first version of `compare_sg.py`, commit `1e388c9`; `score` reads that format).
-- **Scores:** `results.json`, produced by `python compare_sg.py score reference_books.json raw_llm_output.json results.json`. No API key is needed for this step.
+- **Scores:** `results.json`, produced by the `score` command below. No API key is needed for this step.
 
 ## Environment
 
@@ -25,10 +25,23 @@ Both are single runs, so treat them as an order of magnitude, not a precise rati
 
 ## Reproduce
 
+From the repository root. The two tools need separate environments, because ScrapeGraphAI needs Python 3.12 or newer.
+
 ```sh
-python scraper.py --category Poetry --details --delay 0.1 --out ref
-python compare_sg.py run   ref/books.json ~/openai_key.txt gpt-4.1-mini out
-python compare_sg.py score ref/books.json out/raw_llm_output.json out/results.json
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python scraper.py --category Poetry --details --delay 0.1 --out ref
+
+python3.12 -m venv .venv-sg && .venv-sg/bin/pip install scrapegraphai==2.1.4 requests
+.venv-sg/bin/python benchmarks/scrapegraphai/compare_sg.py run ref/books.json ~/openai_key.txt gpt-4.1-mini out
+.venv-sg/bin/python benchmarks/scrapegraphai/compare_sg.py score ref/books.json out/raw_llm_output.json out/results.json
 ```
+
+To re-check the published scores without an API key (any Python 3.10+):
+
+```sh
+python benchmarks/scrapegraphai/compare_sg.py score benchmarks/scrapegraphai/reference_books.json benchmarks/scrapegraphai/raw_llm_output.json /tmp/results.json
+```
+
+`score` counts every reference page: a page missing from an interrupted run counts as wrong, and duplicate or unknown URLs stop the scoring.
 
 Model answers vary between runs and model versions, so a new run will not match these numbers exactly.

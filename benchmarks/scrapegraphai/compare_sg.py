@@ -119,24 +119,41 @@ def same(a, b):
 
 
 def score(ref_path, raw_path, results_path):
-    reference = {b["url"]: b for b in json.loads(Path(ref_path).read_text())["books"]}
+    books = json.loads(Path(ref_path).read_text())["books"]
     raw = json.loads(Path(raw_path).read_text())
+    ref_urls = [b["url"] for b in books]
+    raw_urls = [r["url"] for r in raw["rows"]]
+    for name, urls in (("reference", ref_urls), ("raw output", raw_urls)):
+        dupes = sorted({u for u in urls if urls.count(u) > 1})
+        if dupes:
+            sys.exit(f"{name} has duplicate URLs: {dupes}")
+    unexpected = sorted(set(raw_urls) - set(ref_urls))
+    if unexpected:
+        sys.exit(f"raw output has URLs that are not in the reference: {unexpected}")
+    rows = {r["url"]: r for r in raw["rows"]}
+
+    # Score every reference page; a page with no raw row (interrupted run) counts as wrong.
     pages = []
-    for row in raw["rows"]:
-        ref, got = reference[row["url"]], row.get("got") or {}
+    for ref in books:
+        row = rows.get(ref["url"])
+        got = (row or {}).get("got") or {}
         match = {f: same(field_value(f, got), field_value(f, ref)) for f in FIELDS}
         ref_desc, got_desc = field_value("description", ref), field_value("description", got)
         match["description_whitespace_normalized"] = (
             got_desc is not MISSING and ref_desc is not MISSING
             and " ".join(got_desc.split()) == " ".join(ref_desc.split()))
-        pages.append({"title": ref["title"], "url": row["url"], "seconds": row.get("seconds"),
-                      "error": row.get("error"), "rating_reference": ref.get("rating"),
-                      "rating_llm": got.get("rating"), "match": match})
+        pages.append({"title": ref["title"], "url": ref["url"],
+                      "status": "missing" if row is None else ("error" if row.get("error") else "ok"),
+                      "seconds": (row or {}).get("seconds"), "error": (row or {}).get("error"),
+                      "rating_reference": ref.get("rating"), "rating_llm": got.get("rating"),
+                      "match": match})
     keys = FIELDS + ["description_whitespace_normalized"]
     summary = {
         "model": raw.get("model"),
-        "pages": len(pages),
-        "errors": sum(1 for p in pages if p["error"]),
+        "pages_expected": len(pages),
+        "pages_completed": sum(1 for p in pages if p["status"] == "ok"),
+        "pages_failed": sum(1 for p in pages if p["status"] == "error"),
+        "pages_missing": sum(1 for p in pages if p["status"] == "missing"),
         "agreement_with_reference": {k: sum(p["match"][k] for p in pages) for k in keys},
     }
     if "summary" in raw:  # raw file from the first script version (commit 1e388c9)
