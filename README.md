@@ -49,23 +49,23 @@ Most catalogue and listing sites follow the same shape: categories → paginated
 
 ## Why selectors and not an "AI scraper"
 
-LLM scrapers that take a plain-English prompt are popular, so I measured one against this scraper on the same 19 book pages (Poetry category, 16 Nov 2026): [ScrapeGraphAI](https://github.com/ScrapeGraphAI/Scrapegraph-ai) 2.1.4 with `gpt-4.1-mini`, temperature 0.
+LLM scrapers that take a plain-English prompt are popular, so I ran one against this scraper on the same 19 book pages (Poetry category, 16 Nov 2026): [ScrapeGraphAI](https://github.com/ScrapeGraphAI/Scrapegraph-ai) 2.1.4 with `gpt-4.1-mini`, temperature 0. Single run; scores are agreement with this scraper's output.
 
 | | This scraper | ScrapeGraphAI |
 |---|---|---|
-| Time | 6.4 s | 81 s |
-| Cost | $0 | $0.018 (about $1 per 1,000 books) |
-| Title, price, currency, stock, UPC | 19 / 19 | 19 / 19 |
-| Star rating | 19 / 19 | 2 / 19 |
-| Description identical to the site | 19 / 19 | 2 / 19 |
-| Dependencies | 3 packages | ~100 packages, Python ≥ 3.12 |
+| Time (single run) | 6.4 s | 81 s |
+| Model / API fees | none | $0.018 for 19 pages |
+| Title, price, currency, stock, UPC | reference | 19 / 19 agree |
+| Star rating | reference | 2 / 19 agree |
+| Description, character for character | reference | 2 / 19 agree |
+| Installed packages (fresh venv) | 10 | 97, needs Python ≥ 3.12 |
 
-- **Ratings:** the site shows stars only through a CSS class (`star-rating Four`). The LLM tool converts the page to text, the class is lost, and the model guesses — mostly "3".
-- **Descriptions:** the model silently "tidied" the text (dropped a repeated passage and the trailing "...more" that are really on the site, changed apostrophes) and in two cases moved sentences around. The data no longer matched the source, and nothing flagged it.
+- **Ratings:** the site shows stars only as a CSS class (`star-rating Four`). ScrapeGraphAI converts the page to Markdown before the model sees it, and the class does not survive, so the rating never reaches the model.
+- **Descriptions:** the model returned cleaned-up text: it dropped a passage the site prints twice and the trailing "...more", added missing spaces and changed apostrophes. Readable, but no longer what the site says, and nothing in the output marks the change.
 
-Takeaway: for a catalogue you collect in bulk or on a schedule, explicit selectors are faster, free to run and exact. An LLM extractor is useful for a quick one-off across many differently built sites, for text fields only and with spot checks against the page.
+For this catalogue, selectors were faster, had no model fees and kept the text as published. That is a trade-off, not a rule: selectors need maintenance when a site changes, and an LLM extractor can save time on a one-off job across many differently built sites, as long as its output is spot-checked against the pages.
 
-The reference is this scraper's own output, so its 19 / 19 is by construction; the two failure types were checked against the live pages. Script and per-page results: [`benchmarks/scrapegraphai/`](benchmarks/scrapegraphai/).
+Method, raw model answers, scoring script and evidence: [`benchmarks/scrapegraphai/`](benchmarks/scrapegraphai/).
 
 ---
 Portfolio demo built with AI assistance. Data comes from a public practice site; no client data.
