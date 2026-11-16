@@ -47,5 +47,25 @@ python scraper.py --details                        # also open every product pag
 
 Most catalogue and listing sites follow the same shape: categories → paginated lists → detail pages. For a new site you change the CSS selectors in `parse_listing` and `parse_detail`; crawling, retries, de-duplication and exports stay as they are. Sites behind logins or CAPTCHAs, or whose terms forbid automated access, are out of scope.
 
+## Why selectors and not an "AI scraper"
+
+LLM scrapers that take a plain-English prompt are popular, so I measured one against this scraper on the same 19 book pages (Poetry category, 16 Nov 2026): [ScrapeGraphAI](https://github.com/ScrapeGraphAI/Scrapegraph-ai) 2.1.4 with `gpt-4.1-mini`, temperature 0.
+
+| | This scraper | ScrapeGraphAI |
+|---|---|---|
+| Time | 6.4 s | 81 s |
+| Cost | $0 | $0.018 (about $1 per 1,000 books) |
+| Title, price, currency, stock, UPC | 19 / 19 | 19 / 19 |
+| Star rating | 19 / 19 | 2 / 19 |
+| Description identical to the site | 19 / 19 | 2 / 19 |
+| Dependencies | 3 packages | ~100 packages, Python ≥ 3.12 |
+
+- **Ratings:** the site shows stars only through a CSS class (`star-rating Four`). The LLM tool converts the page to text, the class is lost, and the model guesses — mostly "3".
+- **Descriptions:** the model silently "tidied" the text (dropped a repeated passage and the trailing "...more" that are really on the site, changed apostrophes) and in two cases moved sentences around. The data no longer matched the source, and nothing flagged it.
+
+Takeaway: for a catalogue you collect in bulk or on a schedule, explicit selectors are faster, free to run and exact. An LLM extractor is useful for a quick one-off across many differently built sites, for text fields only and with spot checks against the page.
+
+The reference is this scraper's own output, so its 19 / 19 is by construction; the two failure types were checked against the live pages. Script and per-page results: [`benchmarks/scrapegraphai/`](benchmarks/scrapegraphai/).
+
 ---
 Portfolio demo built with AI assistance. Data comes from a public practice site; no client data.
